@@ -70,7 +70,7 @@ def handle_callback(call):
         page = int(call.data.split("_")[1])
         show_results(chat_id, page, call.message.message_id)
     elif call.data.startswith("send_"):
-        if chat_id not in user_
+        if chat_id not in user_data:
             bot.answer_callback_query(
                 call.id,
                 "🔍 Data pencarian sudah kadaluarsa.\nCoba cari lagu lagi.",
