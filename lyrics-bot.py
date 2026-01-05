@@ -9,7 +9,7 @@ from telebot import types
 
 # ================= CONFIG =================
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-WEB_APP_URL = "https://lyrics-seeker.vercel.app  "
+WEB_APP_URL = "https://lyrics-seeker.vercel.app"
 # =========================================
 
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
