@@ -88,62 +88,65 @@ def send_audio_and_lyrics(chat_id, song):
     lyrics = song.get('plainLyrics', 'Lirik tidak tersedia.')
     clean = sanitize_filename(f"{track} - {artist}")
 
+    # Gunakan opsi yang lebih stabil
     ydl_opts = {
-        'format': 'bestaudio[ext=m4a]/bestaudio/best',  # tambahkan fallback
-        'outtmpl': clean + '.%(ext)s',
+        'format': 'bestaudio[ext=m4a]/bestaudio/best',
+        'outtmpl': f'{clean}.%(ext)s',
         'quiet': True,
         'no_warnings': True,
-        'source_address': '0.0.0.0'
+        'noplaylist': True,
     }
 
     audio_file = None
     try:
         print(f"📥 Memproses: {track} - {artist}")
-        print("🔄 Mulai download audio...")
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.download([f"ytsearch1:{track} {artist}"])
-        print("✅ Download selesai.")
-    except Exception as e:
-        print(f"❌ Gagal download: {e}")
-        bot.send_message(chat_id, "⚠️ Gagal mengunduh audio.")
-        return
+            # Cari info lagu terlebih dahulu
+            info_dict = ydl.extract_info(f"ytsearch1:{track} {artist}", download=True)
+            if 'entries' in info_dict:
+                video_info = info_dict['entries'][0]
+            else:
+                video_info = info_dict
+            
+            # Mendapatkan nama file yang BENAR-BENAR dibuat oleh yt-dlp
+            audio_file = ydl.prepare_filename(video_info)
+            
+            # Terkadang yt-dlp merubah ekstensi di hasil akhir (misal .webm jadi .m4a)
+            # Kita pastikan lagi filenya ada
+            if not os.path.exists(audio_file):
+                # Cari file yang namanya mirip jika prepare_filename meleset
+                base_name = os.path.splitext(audio_file)[0]
+                import glob
+                files = glob.glob(f"{glob.escape(base_name)}.*")
+                if files:
+                    audio_file = files[0]
 
-    # Cari file dengan ekstensi apa pun yang dihasilkan
-    for ext in ['.m4a', '.webm', '.mp3', '.ogg']:
-        candidate = f"{clean}{ext}"
-        if os.path.exists(candidate):
-            audio_file = candidate
-            break
-
-    if audio_file:
-        print(f"🔊 Mengirim: {audio_file}")
-        try:
+        if audio_file and os.path.exists(audio_file):
+            print(f"✅ Download selesai: {audio_file}")
+            print(f"🔊 Mengirim ke Telegram...")
             with open(audio_file, 'rb') as f:
                 bot.send_audio(chat_id, f, title=track, performer=artist)
-        except Exception as e:
-            print(f"❌ Gagal kirim audio ke Telegram: {e}")
-            bot.send_message(chat_id, "⚠️ Gagal mengirim audio.")
-            return
-    else:
-        print("❌ Tidak ada file audio yang dihasilkan!")
-        bot.send_message(chat_id, "⚠️ Audio tidak ditemukan.")
+        else:
+            raise FileNotFoundError("File audio tidak ditemukan di storage.")
+
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        bot.send_message(chat_id, f"⚠️ Gagal memproses audio: {str(e)}")
         return
 
-    # Kirim lirik
-    for i in range(0, len(lyrics), 4000):
-        bot.send_message(chat_id, lyrics[i:i+4000])
+    # Kirim lirik (dipotong per 4000 karakter agar tidak error)
+    if lyrics:
+        for i in range(0, len(lyrics), 4000):
+            bot.send_message(chat_id, lyrics[i:i+4000])
 
     # Siapkan URL Web App
     encoded_track = urllib.parse.quote(track)
     encoded_artist = urllib.parse.quote(artist)
-    youtube_url = f"https://www.youtube.com/results?search_query={encoded_track}+{encoded_artist}"  # TANPA SPASI
     lyrics_url = f"{WEB_APP_URL}/?track={encoded_track}&artist={encoded_artist}"
 
     markup = types.InlineKeyboardMarkup(row_width=1)
-    markup.add(
-        types.InlineKeyboardButton("✨ Lirik Synced", web_app=types.WebAppInfo(url=lyrics_url))
-    )
-    bot.send_message(chat_id, "Atau kelola di Web App:", reply_markup=markup)
+    markup.add(types.InlineKeyboardButton("Web App", web_app=types.WebAppInfo(url=lyrics_url)))
+    bot.send_message(chat_id, "Atau lihat lirik sinkronisasi di sini:", reply_markup=markup)
 
     # Hapus file setelah kirim
     if audio_file and os.path.exists(audio_file):
