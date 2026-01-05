@@ -1,4 +1,4 @@
-pyTelegramBotAPI
-requests
-yt-dlp
-httpx
+pyTelegramBotAPI==4.16.1
+requests==2.31.0
+yt-dlp==2023.12.30
+httpx==0.26.0
