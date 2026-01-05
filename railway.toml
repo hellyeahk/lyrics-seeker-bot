@@ -1,0 +1,9 @@
+[build]
+builder = "PYTHON"
+buildCommand = ""
+
+[deploy]
+startCommand = "python lyrics-bot.py"
+
+[variables]
+PATH = "/usr/bin:/usr/local/bin"
