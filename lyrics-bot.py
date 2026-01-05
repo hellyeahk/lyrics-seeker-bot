@@ -9,7 +9,7 @@ from telebot import types
 
 # ================= CONFIG =================
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-WEB_APP_URL = "https://lyrics-seeker.vercel.app"
+WEB_APP_URL = "https://lyrics-seeker.vercel.app  "
 # =========================================
 
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
@@ -33,7 +33,7 @@ def handle_search(message):
 
     sent = bot.reply_to(message, f"🔎 Mencari <b>{query}</b>...", parse_mode="HTML")
     try:
-        res = requests.get("https://lrclib.net/api/search", params={"q": query}, timeout=20)
+        res = requests.get("https://lrclib.net/api/search  ", params={"q": query}, timeout=20)
         res.raise_for_status()
         data = res.json()
         if not data:
@@ -131,7 +131,7 @@ def send_audio_and_lyrics(chat_id, song):
     # Kirim Web App
     encoded_track = urllib.parse.quote(track)
     encoded_artist = urllib.parse.quote(artist)
-    youtube_url = f"https://www.youtube.com/results?search_query={encoded_track}+{encoded_artist}"
+    youtube_url = f"https://www.youtube.com/results?search_query=  {encoded_track}+{encoded_artist}"
     lyrics_url = f"{WEB_APP_URL}/?track={encoded_track}&artist={encoded_artist}"
 
     markup = types.InlineKeyboardMarkup(row_width=1)
