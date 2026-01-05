@@ -69,6 +69,14 @@ def handle_callback(call):
         page = int(call.data.split("_")[1])
         show_results(chat_id, page, call.message.message_id)
     elif call.data.startswith("send_"):
+        # ✅ CEGAH KeyError jika data sudah kadaluarsa
+        if chat_id not in user_
+            bot.answer_callback_query(
+                call.id,
+                "🔍 Data pencarian sudah kadaluarsa.\nCoba cari lagu lagi.",
+                show_alert=True
+            )
+            return
         idx = int(call.data.split("_")[1])
         song = user_data[chat_id][idx]
         bot.edit_message_text("⏳ Mengunduh audio...", chat_id, call.message.message_id)
@@ -81,7 +89,7 @@ def send_audio_and_lyrics(chat_id, song):
     clean = sanitize_filename(f"{track} - {artist}")
 
     ydl_opts = {
-        'format': 'bestaudio[ext=m4a]/bestaudio',  # utamakan .m4a
+        'format': 'bestaudio[ext=m4a]/bestaudio',  # Prioritaskan .m4a (kompatibel Telegram)
         'outtmpl': clean + '.%(ext)s',
         'quiet': True,
         'no_warnings': True,
@@ -90,6 +98,7 @@ def send_audio_and_lyrics(chat_id, song):
 
     audio_file = None
     try:
+        print(f"📥 Memproses: {track} - {artist}")
         print("🔄 Mulai download audio...")
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([f"ytsearch1:{track} {artist}"])
@@ -99,7 +108,7 @@ def send_audio_and_lyrics(chat_id, song):
         bot.send_message(chat_id, "⚠️ Gagal mengunduh audio.")
         return
 
-    # Cari file dengan ekstensi apa pun
+    # Cari file dengan ekstensi apa pun yang dihasilkan
     for ext in ['.m4a', '.webm', '.mp3', '.ogg']:
         candidate = f"{clean}{ext}"
         if os.path.exists(candidate):
@@ -108,13 +117,19 @@ def send_audio_and_lyrics(chat_id, song):
 
     if audio_file:
         print(f"🔊 Mengirim: {audio_file}")
-        with open(audio_file, 'rb') as f:
-            bot.send_audio(chat_id, f, title=track, performer=artist)
+        try:
+            with open(audio_file, 'rb') as f:
+                bot.send_audio(chat_id, f, title=track, performer=artist)
+        except Exception as e:
+            print(f"❌ Gagal kirim audio ke Telegram: {e}")
+            bot.send_message(chat_id, "⚠️ Gagal mengirim audio.")
+            return
     else:
         print("❌ Tidak ada file audio yang dihasilkan!")
         bot.send_message(chat_id, "⚠️ Audio tidak ditemukan.")
         return
 
+    # Kirim lirik
     for i in range(0, len(lyrics), 4000):
         bot.send_message(chat_id, lyrics[i:i+4000])
 
@@ -123,11 +138,10 @@ def send_audio_and_lyrics(chat_id, song):
     encoded_artist = urllib.parse.quote(artist)
     youtube_url = f"https://www.youtube.com/results?search_query={encoded_track}+{encoded_artist}"  # TANPA SPASI
     lyrics_url = f"{WEB_APP_URL}/?track={encoded_track}&artist={encoded_artist}"
-    save_url = f"{WEB_APP_URL}/?action=save&track={encoded_track}&artist={encoded_artist}&youtube={urllib.parse.quote(youtube_url)}"
 
-    markup = types.InlineKeyboardMarkup(row_width=2)
+    markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
-        types.InlineKeyboardButton("Web App", web_app=types.WebAppInfo(url=lyrics_url)),
+        types.InlineKeyboardButton("✨ Lirik Synced", web_app=types.WebAppInfo(url=lyrics_url))
     )
     bot.send_message(chat_id, "Atau kelola di Web App:", reply_markup=markup)
 
@@ -142,4 +156,3 @@ def send_audio_and_lyrics(chat_id, song):
 if __name__ == "__main__":
     print("🚀 Lyrics Seeker Bot aktif!")
     bot.polling(none_stop=True)
-
