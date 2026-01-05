@@ -89,13 +89,8 @@ def send_audio_and_lyrics(chat_id, song):
     clean = sanitize_filename(f"{track} - {artist}")
 
     ydl_opts = {
-        'format': 'bestaudio/best',
+        'format': 'bestaudio[ext=m4a]/bestaudio/best',  # tambahkan fallback
         'outtmpl': clean + '.%(ext)s',
-        'postprocessors': [{
-            'key': 'FFmpegExtractAudio',
-            'preferredcodec': 'mp3',
-            'preferredquality': '128',
-        }],
         'quiet': True,
         'no_warnings': True,
         'source_address': '0.0.0.0'
@@ -161,5 +156,6 @@ def send_audio_and_lyrics(chat_id, song):
 if __name__ == "__main__":
     print("🚀 Lyrics Seeker Bot aktif!")
     bot.polling(none_stop=True)
+
 
 
