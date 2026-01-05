@@ -4,11 +4,12 @@ import yt_dlp
 import os
 import re
 import urllib.parse
+import glob  # ✅ TAMBAHAN: untuk cari file fleksibel
 from telebot import types
 
 # ================= CONFIG =================
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-WEB_APP_URL = "https://lyrics-seeker.vercel.app"  # TANPA spasi di akhir!
+WEB_APP_URL = "https://lyrics-seeker.vercel.app"
 # =========================================
 
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
@@ -32,7 +33,7 @@ def handle_search(message):
 
     sent = bot.reply_to(message, f"🔎 Mencari <b>{query}</b>...", parse_mode="HTML")
     try:
-        res = requests.get("https://lrclib.net/api/search", params={"q": query}, timeout=20)  # HAPUS SPASI
+        res = requests.get("https://lrclib.net/api/search", params={"q": query}, timeout=20)
         res.raise_for_status()
         data = res.json()
         if not data:
@@ -69,7 +70,6 @@ def handle_callback(call):
         page = int(call.data.split("_")[1])
         show_results(chat_id, page, call.message.message_id)
     elif call.data.startswith("send_"):
-        # ✅ CEGAH KeyError jika data sudah kadaluarsa
         if chat_id not in user_data:
             bot.answer_callback_query(
                 call.id,
@@ -88,77 +88,65 @@ def send_audio_and_lyrics(chat_id, song):
     lyrics = song.get('plainLyrics', 'Lirik tidak tersedia.')
     clean = sanitize_filename(f"{track} - {artist}")
 
-    # Gunakan opsi yang lebih stabil
     ydl_opts = {
         'format': 'bestaudio[ext=m4a]/bestaudio/best',
-        'outtmpl': f'{clean}.%(ext)s',
+        'outtmpl': clean + '.%(ext)s',
         'quiet': True,
         'no_warnings': True,
-        'noplaylist': True,
+        'source_address': '0.0.0.0'
     }
 
-    audio_file = None
     try:
         print(f"📥 Memproses: {track} - {artist}")
+        print("🔄 Mulai download audio...")
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            # Cari info lagu terlebih dahulu
-            info_dict = ydl.extract_info(f"ytsearch1:{track} {artist}", download=True)
-            if 'entries' in info_dict:
-                video_info = info_dict['entries'][0]
-            else:
-                video_info = info_dict
-            
-            # Mendapatkan nama file yang BENAR-BENAR dibuat oleh yt-dlp
-            audio_file = ydl.prepare_filename(video_info)
-            
-            # Terkadang yt-dlp merubah ekstensi di hasil akhir (misal .webm jadi .m4a)
-            # Kita pastikan lagi filenya ada
-            if not os.path.exists(audio_file):
-                # Cari file yang namanya mirip jika prepare_filename meleset
-                base_name = os.path.splitext(audio_file)[0]
-                import glob
-                files = glob.glob(f"{glob.escape(base_name)}.*")
-                if files:
-                    audio_file = files[0]
-
-        if audio_file and os.path.exists(audio_file):
-            print(f"✅ Download selesai: {audio_file}")
-            print(f"🔊 Mengirim ke Telegram...")
-            with open(audio_file, 'rb') as f:
-                bot.send_audio(chat_id, f, title=track, performer=artist)
-        else:
-            raise FileNotFoundError("File audio tidak ditemukan di storage.")
-
+            ydl.download([f"ytsearch1:{track} {artist}"])
+        print("✅ Download selesai.")
     except Exception as e:
-        print(f"❌ Error: {e}")
-        bot.send_message(chat_id, f"⚠️ Gagal memproses audio: {str(e)}")
+        print(f"❌ Gagal download: {e}")
+        bot.send_message(chat_id, "⚠️ Gagal mengunduh audio.")
         return
 
-    # Kirim lirik (dipotong per 4000 karakter agar tidak error)
-    if lyrics:
-        for i in range(0, len(lyrics), 4000):
-            bot.send_message(chat_id, lyrics[i:i+4000])
+    # ✅ CARA BARU: Cari SEMUA file yang diawali dengan `clean`
+    candidates = glob.glob(f"{clean}.*")
+    if not candidates:
+        print("❌ Tidak ada file audio yang dihasilkan!")
+        bot.send_message(chat_id, "⚠️ Audio tidak ditemukan.")
+        return
 
-    # Siapkan URL Web App
+    audio_file = candidates[0]  # Ambil file pertama
+    print(f"🔊 File ditemukan: {audio_file}")
+
+    try:
+        with open(audio_file, 'rb') as f:
+            bot.send_audio(chat_id, f, title=track, performer=artist)
+    except Exception as e:
+        print(f"❌ Gagal kirim audio ke Telegram: {e}")
+        bot.send_message(chat_id, "⚠️ Gagal mengirim audio.")
+
+    # Kirim lirik
+    for i in range(0, len(lyrics), 4000):
+        bot.send_message(chat_id, lyrics[i:i+4000])
+
+    # Kirim Web App
     encoded_track = urllib.parse.quote(track)
     encoded_artist = urllib.parse.quote(artist)
+    youtube_url = f"https://www.youtube.com/results?search_query={encoded_track}+{encoded_artist}"
     lyrics_url = f"{WEB_APP_URL}/?track={encoded_track}&artist={encoded_artist}"
 
     markup = types.InlineKeyboardMarkup(row_width=1)
-    markup.add(types.InlineKeyboardButton("Web App", web_app=types.WebAppInfo(url=lyrics_url)))
-    bot.send_message(chat_id, "Atau lihat lirik sinkronisasi di sini:", reply_markup=markup)
+    markup.add(
+        types.InlineKeyboardButton("✨ Lirik Synced", web_app=types.WebAppInfo(url=lyrics_url))
+    )
+    bot.send_message(chat_id, "Atau kelola di Web App:", reply_markup=markup)
 
-    # Hapus file setelah kirim
-    if audio_file and os.path.exists(audio_file):
-        try:
-            os.remove(audio_file)
-            print(f"🗑️ File {audio_file} dihapus.")
-        except Exception as e:
-            print(f"⚠️ Gagal hapus file: {e}")
+    # Hapus file
+    try:
+        os.remove(audio_file)
+        print(f"🗑️ File {audio_file} dihapus.")
+    except Exception as e:
+        print(f"⚠️ Gagal hapus file: {e}")
 
 if __name__ == "__main__":
     print("🚀 Lyrics Seeker Bot aktif!")
     bot.polling(none_stop=True)
-
-
-
