@@ -118,20 +118,19 @@ def send_audio_and_lyrics(chat_id, song, download_msg_id):
 
     ydl_opts = {
         'format': 'bestaudio[ext=m4a]/bestaudio/best',
-        'outtmpl': clean + '.%(ext)s',
+        'outtmpl': f'{clean}.%(ext)s',
         'quiet': True,
         'no_warnings': True,
-        'source_address': '0.0.0.0',
-        'geo_bypass': True,
-        'geo_bypass_country': 'US',
+        'noplaylist': True,
+        # Tambahkan opsi di bawah ini untuk menghindari 403
         'http_headers': {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
             'Accept-Language': 'en-us,en;q=0.5',
             'Sec-Fetch-Mode': 'navigate',
-            'Origin': 'https://www.youtube.com',
-            'Referer': 'https://www.youtube.com/'
-        }
+        },
+        'nocheckcertificate': True,
+        'geo_bypass': True,
     }
 
     try:
