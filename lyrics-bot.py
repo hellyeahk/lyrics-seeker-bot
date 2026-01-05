@@ -36,7 +36,7 @@ def handle_search(message):
         res = requests.get("https://lrclib.net/api/search", params={"q": query}, timeout=20)  # HAPUS SPASI
         res.raise_for_status()
         data = res.json()
-        if not 
+        if not data:
             bot.edit_message_text("❌ Lagu tidak ditemukan.", message.chat.id, sent.message_id)
             return
         user_data[message.chat.id] = data
