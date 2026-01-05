@@ -33,7 +33,7 @@ def handle_search(message):
 
     sent = bot.reply_to(message, f"🔎 Mencari <b>{query}</b>...", parse_mode="HTML")
     try:
-        res = requests.get("https://lrclib.net/api/search  ", params={"q": query}, timeout=20)
+        res = requests.get("https://lrclib.net/api/search", params={"q": query}, timeout=20)
         res.raise_for_status()
         data = res.json()
         if not data:
