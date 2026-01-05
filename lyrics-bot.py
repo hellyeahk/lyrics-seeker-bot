@@ -4,7 +4,7 @@ import yt_dlp
 import os
 import re
 import urllib.parse
-import glob  # ✅ TAMBAHAN: untuk cari file fleksibel
+import glob
 from telebot import types
 
 # ================= CONFIG =================
@@ -136,7 +136,7 @@ def send_audio_and_lyrics(chat_id, song):
 
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
-        types.InlineKeyboardButton("✨ Lirik Synced", web_app=types.WebAppInfo(url=lyrics_url))
+        types.InlineKeyboardButton("Synced Lyrics", web_app=types.WebAppInfo(url=lyrics_url))
     )
     bot.send_message(chat_id, "Atau kelola di Web App:", reply_markup=markup)
 
