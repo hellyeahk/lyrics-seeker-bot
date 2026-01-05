@@ -70,7 +70,7 @@ def handle_callback(call):
         show_results(chat_id, page, call.message.message_id)
     elif call.data.startswith("send_"):
         # ✅ CEGAH KeyError jika data sudah kadaluarsa
-        if chat_id not in user_
+        if chat_id not in user_data:
             bot.answer_callback_query(
                 call.id,
                 "🔍 Data pencarian sudah kadaluarsa.\nCoba cari lagu lagi.",
@@ -156,3 +156,4 @@ def send_audio_and_lyrics(chat_id, song):
 if __name__ == "__main__":
     print("🚀 Lyrics Seeker Bot aktif!")
     bot.polling(none_stop=True)
+
