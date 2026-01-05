@@ -47,29 +47,54 @@ def handle_search(message):
 
 def show_results(chat_id, page, msg_id):
     results = user_data.get(chat_id, [])
-    batch = results[page*5 : page*5+5]
+    batch = results[page*10 : page*10+10]  # 10 lagu/halaman
     if not batch: return
 
-    markup = types.InlineKeyboardMarkup()
+    # Teks: nomor global (1, 2, 3, ..., N)
+    text_lines = []
     for i, song in enumerate(batch):
-        idx = page*5 + i
-        txt = f"{song.get('trackName', 'Unknown')} - {song.get('artistName', 'Unknown')}"
-        markup.add(types.InlineKeyboardButton(txt[:60], callback_data=f"send_{idx}"))
-    
-    nav = []
-    if page > 0: nav.append(types.InlineKeyboardButton("⬅️", callback_data=f"pg_{page-1}"))
-    if len(results) > (page+1)*5: nav.append(types.InlineKeyboardButton("➡️", callback_data=f"pg_{page+1}"))
-    if nav: markup.row(*nav)
+        global_num = page * 10 + i + 1  # 1, 2, ..., 11, 12, ...
+        title = song.get('trackName', 'Unknown')
+        artist = song.get('artistName', 'Unknown')
+        text_lines.append(f"{global_num}. {title} - {artist}")
+    text = "\n".join(text_lines)
 
-    bot.edit_message_text(f"🎧 Pilih lagu (Hal {page+1}):", chat_id, msg_id, reply_markup=markup)
+    # Tombol: gunakan NOMOR GLOBAL di teks tombol
+    markup = types.InlineKeyboardMarkup()
+    num_buttons = []
+    for i in range(len(batch)):
+        global_idx = page * 10 + i        # indeks untuk callback
+        global_num = global_idx + 1       # nomor yang ditampilkan
+        num_buttons.append(types.InlineKeyboardButton(str(global_num), callback_data=f"send_{global_idx}"))
+        if len(num_buttons) == 5 or i == len(batch) - 1:
+            markup.row(*num_buttons)
+            num_buttons = []
+
+    # Navigasi
+    nav = []
+    total_pages = (len(results) + 9) // 10
+    if page > 0:
+        nav.append(types.InlineKeyboardButton("⬅️", callback_data=f"pg_{page-1}"))
+    nav.append(types.InlineKeyboardButton("❌", callback_data="cancel"))
+    if page < total_pages - 1:
+        nav.append(types.InlineKeyboardButton("➡️", callback_data=f"pg_{page+1}"))
+    markup.row(*nav)
+
+    start_idx = page * 10 + 1
+    end_idx = min((page + 1) * 10, len(results))
+    header = f"🎧 Pencarian {start_idx}-{end_idx} dari {len(results)}\n\n"
+    bot.edit_message_text(header + text, chat_id, msg_id, reply_markup=markup)
 
 @bot.callback_query_handler(func=lambda c: True)
 def handle_callback(call):
     chat_id = call.message.chat.id
-    if call.data.startswith("pg_"):
+    if call.data == "cancel":
+        bot.edit_message_text("✖️ Pencarian dibatalkan.", chat_id, call.message.message_id)
+    elif call.data.startswith("pg_"):
         page = int(call.data.split("_")[1])
         show_results(chat_id, page, call.message.message_id)
     elif call.data.startswith("send_"):
+        idx = int(call.data.split("_")[1])
         if chat_id not in user_data:
             bot.answer_callback_query(
                 call.id,
@@ -77,12 +102,15 @@ def handle_callback(call):
                 show_alert=True
             )
             return
-        idx = int(call.data.split("_")[1])
-        song = user_data[chat_id][idx]
-        bot.edit_message_text("⏳ Mengunduh audio...", chat_id, call.message.message_id)
-        send_audio_and_lyrics(chat_id, song)
+        all_results = user_data[chat_id]
+        if idx >= len(all_results):
+            bot.answer_callback_query(call.id, "❌ Lagu tidak ditemukan.", show_alert=True)
+            return
+        song = all_results[idx]
+        sent = bot.edit_message_text("⏳ Mengunduh audio...", chat_id, call.message.message_id)
+        send_audio_and_lyrics(chat_id, song, sent.message_id)
 
-def send_audio_and_lyrics(chat_id, song):
+def send_audio_and_lyrics(chat_id, song, download_msg_id):
     track = song.get('trackName', 'Unknown')
     artist = song.get('artistName', 'Unknown')
     lyrics = song.get('plainLyrics', 'Lirik tidak tersedia.')
@@ -93,7 +121,12 @@ def send_audio_and_lyrics(chat_id, song):
         'outtmpl': clean + '.%(ext)s',
         'quiet': True,
         'no_warnings': True,
-        'source_address': '0.0.0.0'
+        'source_address': '0.0.0.0',
+        'geo_bypass': True,
+        'geo_bypass_country': 'US',
+        'http_headers': {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        }
     }
 
     try:
@@ -107,21 +140,22 @@ def send_audio_and_lyrics(chat_id, song):
         bot.send_message(chat_id, "⚠️ Gagal mengunduh audio.")
         return
 
-    # ✅ CARA BARU: Cari SEMUA file yang diawali dengan `clean`
     candidates = glob.glob(f"{clean}.*")
     if not candidates:
         print("❌ Tidak ada file audio yang dihasilkan!")
         bot.send_message(chat_id, "⚠️ Audio tidak ditemukan.")
         return
 
-    audio_file = candidates[0]  # Ambil file pertama
+    audio_file = candidates[0]
     print(f"🔊 File ditemukan: {audio_file}")
 
     try:
         with open(audio_file, 'rb') as f:
             bot.send_audio(chat_id, f, title=track, performer=artist)
+        # ✅ HAPUS PESAN "Mengunduh audio..."
+        bot.delete_message(chat_id, download_msg_id)
     except Exception as e:
-        print(f"❌ Gagal kirim audio ke Telegram: {e}")
+        print(f"❌ Gagal kirim/hapus: {e}")
         bot.send_message(chat_id, "⚠️ Gagal mengirim audio.")
 
     # Kirim lirik
@@ -131,16 +165,16 @@ def send_audio_and_lyrics(chat_id, song):
     # Kirim Web App
     encoded_track = urllib.parse.quote(track)
     encoded_artist = urllib.parse.quote(artist)
-    youtube_url = f"https://www.youtube.com/results?search_query=  {encoded_track}+{encoded_artist}"
+    youtube_url = f"https://www.youtube.com/results?search_query={encoded_track}+{encoded_artist}"
     lyrics_url = f"{WEB_APP_URL}/?track={encoded_track}&artist={encoded_artist}"
 
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
-        types.InlineKeyboardButton("Synced Lyrics", web_app=types.WebAppInfo(url=lyrics_url))
+        types.InlineKeyboardButton("✨ Lirik Synced", web_app=types.WebAppInfo(url=lyrics_url))
     )
     bot.send_message(chat_id, "Atau kelola di Web App:", reply_markup=markup)
 
-    # Hapus file
+    # Hapus file lokal
     try:
         os.remove(audio_file)
         print(f"🗑️ File {audio_file} dihapus.")
