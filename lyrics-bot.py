@@ -7,7 +7,7 @@ import urllib.parse
 from telebot import types
 
 # ================= CONFIG =================
-TELEGRAM_TOKEN = "8509120083:AAFGKnk0wgWdpd-zhrd-MpxqqhiKWZT8eyw"
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 WEB_APP_URL = "https://lyrics-seeker.vercel.app"  # Pastikan TANPA spasi di akhir!
 # =========================================
 
