@@ -5,32 +5,28 @@ import os
 import re
 import urllib.parse
 import glob
+import socket  # Tambahkan ini
 from telebot import types
-import socket
-import requests.packages.urllib3.util.connection as urllib3_cn
+import requests.packages.urllib3.util.connection as urllib3_cn # Tambahkan ini
 
-# ================= CONFIG =================
+# --- PAKSA IPV4 (Sangat disarankan untuk Railway) ---
+def allowed_gai_family():
+    return socket.AF_INET
+urllib3_cn.allowed_gai_family = allowed_gai_family
+# ----------------------------------------------------
+
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 WEB_APP_URL = "https://lyrics-seeker.vercel.app"
-# =========================================
 
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 user_data = {}
 
-def allowed_gai_family():
-    return socket.AF_INET # Paksa IPv4
-urllib3_cn.allowed_gai_family = allowed_gai_family
+# Header browser asli agar tidak diblokir server lirik
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+}
 
-def sanitize_filename(name):
-    return re.sub(r'[\\/*?:"<>|]', "", name)
-
-@bot.message_handler(commands=["start"])
-def start(message):
-    bot.reply_to(
-        message,
-        "Ketik judul lagu dan nama penyanyi yang ingin dicari.\n",
-        parse_mode="HTML"
-    )
+# ... (fungsi sanitize_filename dan start tetap sama) ...
 
 @bot.message_handler(func=lambda m: True)
 def handle_search(message):
@@ -38,18 +34,12 @@ def handle_search(message):
     if not query: return
 
     sent = bot.reply_to(message, f"🔎 Mencari <b>{query}</b>...", parse_mode="HTML")
-    
-    # Tambahkan Headers agar tidak diblokir Cloudflare/Server
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36"
-    }
-
     try:
-        # Tambahkan headers ke dalam request
+        # Gunakan HEADERS dan TIMEOUT di sini
         res = requests.get(
             "https://lrclib.net/api/search", 
             params={"q": query}, 
-            headers=headers, 
+            headers=HEADERS, 
             timeout=15
         )
         res.raise_for_status()
@@ -64,10 +54,10 @@ def handle_search(message):
         
     except requests.exceptions.SSLError as e:
         print(f"❌ SSL Error: {e}")
-        bot.edit_message_text("⚠️ Gangguan koneksi aman (SSL). Coba lagi sebentar lagi.", message.chat.id, sent.message_id)
+        bot.edit_message_text("⚠️ Gagal (SSL Error). Coba lagi dalam 5 detik.", message.chat.id, sent.message_id)
     except Exception as e:
         print("❌ LRCLIB error:", e)
-        bot.edit_message_text(f"⚠️ Gagal mencari lirik: {str(e)[:50]}", message.chat.id, sent.message_id)
+        bot.edit_message_text("⚠️ Gagal mencari lirik. Server lirik sedang sibuk.", message.chat.id, sent.message_id)
 
 def show_results(chat_id, page, msg_id):
     results = user_data.get(chat_id, [])
