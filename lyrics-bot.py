@@ -148,8 +148,15 @@ def send_audio_and_lyrics(chat_id, song, download_msg_id):
         bot.send_message(chat_id, "⚠️ Terjadi kesalahan saat memproses audio.")
 
 if __name__ == "__main__":
-    print("🚀 Bot running...")
-    # Menghapus webhook lama agar tidak Conflict 409
-    bot.remove_webhook()
-    time.sleep(1)
-    bot.polling(none_stop=True)
+    print("🚀 Membersihkan sesi lama...")
+    try:
+        # 1. Hapus Webhook (jika pernah pakai webhook)
+        bot.remove_webhook()
+        # 2. Beri jeda 5 detik agar Telegram membersihkan koneksi lama
+        time.sleep(5)
+        print("🚀 Bot Lyrics Seeker aktif!")
+        # 3. Mulai polling
+        bot.polling(none_stop=True, skip_pending=True)
+    except Exception as e:
+        print(f"❌ Gagal start: {e}")
+        time.sleep(10)
